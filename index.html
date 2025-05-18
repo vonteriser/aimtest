@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Aim Trainer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet" />
+  <style>
+    body {
+  font-family: 'Orbitron', sans-serif;
+  background: linear-gradient(-45deg, #020024, #090979, #00d4ff);
+  background-size: 600% 600%;
+  animation: gradientMove 15s ease infinite;
+  color: white;
+  overflow: hidden;
+  cursor: none;
+}
+
+
+    .cursor-dot,
+    .cursor-ring {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+    }
+
+    .cursor-dot {
+      width: 6px;
+      height: 6px;
+      background-color: white;
+    }
+
+    .cursor-ring {
+      width: 30px;
+      height: 30px;
+      border: 2px solid white;
+      transition: width 0.2s, height 0.2s;
+    }
+
+    .cursor-dot,
+    .cursor-ring {
+      border-radius: 0;
+    }
+
+    .target {
+  position: absolute;
+  z-index: 40; /* Add this line */
+  width: 50px;
+  height: 50px;
+  background-color: lightblue ;
+  border: 2px solid white;
+  border-radius: 0;
+  transition: transform 0.2s;
+}
+
+
+    .target:hover {
+      transform: scale(1.2);
+    }
+
+    @media (max-width: 768px) {
+      .target {
+        width: 70px;
+        height: 70px;
+      }
+    }
+@keyframes gradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+  </style>
+</head>
+<body>
+
+<div class="cursor-dot"></div>
+<div class="cursor-ring"></div>
+
+<!-- HUD -->
+<div class="absolute top-4 left-1/2 transform -translate-x-1/2 text-center space-y-2 z-50 pointer-events-none">
+  <div class="text-xl sm:text-2xl font-bold">Score: <span id="score">0</span></div>
+  <div class="text-lg">Time Left: <span id="time">60</span>s</div>
+  <div class="text-sm sm:text-base">
+    Accuracy: <span id="accuracy">100</span>% | Avg Reaction: <span id="reaction">0</span> ms
+  </div>
+</div>
+
+<!-- Game Area -->
+<div id="game-area" class="relative w-full h-screen"></div>
+
+<!-- End Screen -->
+<div id="end-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-black text-white z-50 text-center space-y-4">
+  <h1 class="text-3xl font-bold">Time’s Up!</h1>
+  <p>Final Score: <span id="final-score"></span></p>
+  <p>Accuracy: <span id="final-accuracy"></span>%</p>
+  <p>Avg Reaction Time: <span id="final-reaction"></span> ms</p>
+  <button onclick="window.location.reload()" class="mt-4 bg-white text-black px-6 py-2 rounded hover:bg-gray-300">Play Again</button>
+</div>
+
+<!-- Sound -->
+<audio id="hit-sound" src="https://cdn.pixabay.com/audio/2021/08/04/audio_28e56690d4.mp3" preload="auto"></audio>
+
+<script>
+  // Cursor logic
+  const dot = document.querySelector('.cursor-dot');
+  const ring = document.querySelector('.cursor-ring');
+  let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
+
+  document.addEventListener('mousemove', e => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    dot.style.left = `${mouseX}px`;
+    dot.style.top = `${mouseY}px`;
+  });
+
+  function animateRing() {
+    ringX += (mouseX - ringX) * 0.25;
+    ringY += (mouseY - ringY) * 0.25;
+    ring.style.left = `${ringX}px`;
+    ring.style.top = `${ringY}px`;
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
+
+  // Game logic
+  const gameArea = document.getElementById('game-area');
+  const scoreDisplay = document.getElementById('score');
+  const timeDisplay = document.getElementById('time');
+  const accuracyDisplay = document.getElementById('accuracy');
+  const reactionDisplay = document.getElementById('reaction');
+
+  const finalScore = document.getElementById('final-score');
+  const finalAccuracy = document.getElementById('final-accuracy');
+  const finalReaction = document.getElementById('final-reaction');
+  const endScreen = document.getElementById('end-screen');
+
+  const hitSound = document.getElementById('hit-sound');
+
+  let score = 0;
+  let totalShots = 0;
+  let totalReaction = 0;
+  let startTime = 60;
+  let timer;
+  let targetSpawnTime;
+
+  function spawnTarget() {
+    const target = document.createElement('div');
+    target.classList.add('target');
+
+    const areaWidth = window.innerWidth - 60;
+    const areaHeight = window.innerHeight - 60;
+    const x = Math.random() * areaWidth;
+    const y = Math.random() * areaHeight;
+
+    target.style.left = `${x}px`;
+    target.style.top = `${y}px`;
+
+    gameArea.appendChild(target);
+    targetSpawnTime = performance.now();
+
+    target.addEventListener('click', () => {
+      const reactionTime = performance.now() - targetSpawnTime;
+      totalReaction += reactionTime;
+      score++;
+      totalShots++;
+      scoreDisplay.textContent = score;
+      reactionDisplay.textContent = Math.round(totalReaction / score);
+      accuracyDisplay.textContent = Math.round((score / totalShots) * 100);
+
+      hitSound.currentTime = 0;
+      hitSound.play();
+
+      target.remove();
+      spawnTarget();
+    });
+
+    // If missed, count as shot
+    target.addEventListener('pointerdown', () => {
+      if (!target.clicked) {
+        totalShots++;
+        accuracyDisplay.textContent = Math.round((score / totalShots) * 100);
+      }
+    });
+  }
+
+  function startTimer() {
+    timer = setInterval(() => {
+      startTime--;
+      timeDisplay.textContent = startTime;
+
+      if (startTime <= 0) {
+        clearInterval(timer);
+        endGame();
+      }
+    }, 1000);
+  }
+
+  function endGame() {
+    gameArea.innerHTML = '';
+    finalScore.textContent = score;
+    finalAccuracy.textContent = accuracyDisplay.textContent;
+    finalReaction.textContent = reactionDisplay.textContent;
+    endScreen.classList.remove('hidden');
+  }
+
+  // Start game
+  spawnTarget();
+  startTimer();
+</script>
+
+</body>
+</html>
